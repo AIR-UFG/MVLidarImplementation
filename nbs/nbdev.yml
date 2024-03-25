@@ -1,0 +1,9 @@
+project:
+  output-dir: _docs
+
+website:
+  title: "MVLidarImplementation"
+  site-url: "https://alunos-pfc.github.io/MVLidarImplementation"
+  description: ""
+  repo-branch: main
+  repo-url: "https://github.com/alunos-pfc/MVLidarImplementation"
