@@ -12,32 +12,28 @@ from torch.optim import Adam
 from torch.nn import MaxPool2d
 import torch.nn.functional as F
 
-# %% ../nbs/01_model.ipynb 4
+# %% ../nbs/01_model.ipynb 5
 class Inception_2(nn.Module):
     """Inception_2 Block"""
 
     def __init__(self, in_channels, output_dim):
         super(Inception_2, self).__init__()
 
-        self.bn = nn.BatchNorm2d(output_dim)
-
         # 1x1
-        self.b1_1 = nn.Conv2d(in_channels, output_dim, kernel_size=(4, 1), stride=(4, 1))
+        self.b1_1 = conv_Block(in_channels, output_dim, kernel_size=1, stride=1, padding=0)
 
         # pool -> 1x1
-        self.b2_1 = nn.MaxPool2d(kernel_size=(2, 1), stride=(2, 1))
-        self.b2_2 = nn.Conv2d(in_channels, output_dim, kernel_size=1, stride=(2, 1))
-
+        self.b2_1 = nn.MaxPool2d(kernel_size=3 , stride=1 , padding=1)
+        self.b2_2 = conv_Block(in_channels, output_dim, kernel_size=1, stride=1, padding=0)
 
         # 1x1 -> 3x3
-        self.b3_1 = nn.Conv2d(in_channels, output_dim, kernel_size=(4, 1), stride=(4, 1))
-        self.b3_2 = nn.Conv2d(output_dim, output_dim, kernel_size=3, padding=1)
-
+        self.b3_1 = conv_Block(in_channels, output_dim, kernel_size=1, stride=1, padding=0)
+        self.b3_2 = conv_Block(output_dim, output_dim, kernel_size=3, stride=1, padding=1)
 
         # 1x1 -> 3x3 -> 3x3
-        self.b4_1 = nn.Conv2d(in_channels, output_dim, kernel_size=(4, 1), stride=(4, 1))
-        self.b4_2 = nn.Conv2d(output_dim, output_dim, kernel_size=3, padding=1)
-        self.b4_3 = nn.Conv2d(output_dim, output_dim, kernel_size=3, padding=1)
+        self.b4_1 = conv_Block(in_channels, output_dim, kernel_size=1, stride=1, padding=0)
+        self.b4_2 = conv_Block(output_dim, output_dim, kernel_size=3, stride=1, padding=1)
+        self.b4_3 = conv_Block(output_dim, output_dim, kernel_size=3, stride=1, padding=1)
 
 
     def forward(self, x):
@@ -53,44 +49,42 @@ class Inception_2(nn.Module):
         branch4 = self.b4_2(branch4)
         branch4 = self.b4_3(branch4)
 
-        return torch.cat((branch1, branch2, branch3, branch4), dim=2)
+        return torch.cat((branch1, branch2, branch3, branch4), dim=1)
 
-# %% ../nbs/01_model.ipynb 5
+# %% ../nbs/01_model.ipynb 6
 class InceptionBlock(nn.Module):
     def __init__(self, in_channels, output_dims, num_modules):
         super(InceptionBlock, self).__init__()
-        self.modules = []
+        self.modules_inBlock = nn.ModuleList([])
         for module in range(num_modules):
-          self.modules.append(Inception_2(in_channels[module], output_dims[module]))
+          self.modules_inBlock = self.modules_inBlock.append(Inception_2(in_channels[module], output_dims[module]))
 
     def forward(self, x):
-        for module in self.modules:
+        for module in self.modules_inBlock:
             x = module(x)
         return x
 
-# %% ../nbs/01_model.ipynb 6
+# %% ../nbs/01_model.ipynb 7
 class Encoder(nn.Module):
     def __init__(self):
         super(Encoder, self).__init__()
 
-        self.conv1 = nn.Conv2d(2, 64, kernel_size=3, padding=1)
-        self.conv2 = nn.Conv2d(64, 64, kernel_size=3, padding=1)
-        self.conv3 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
+        self.conv1 = conv_Block(2, 64, kernel_size=3, padding=1)
+        self.conv2 = conv_Block(64, 64, kernel_size=3, padding=1)
+        self.conv3 = conv_Block(64, 128, kernel_size=3, padding=1)
 
         self.pool = MaxPool2d(2)
-        self.relu = ReLU()
-        self.bn1 = nn.BatchNorm2d(64)
-        self.bn2 = nn.BatchNorm2d(128)
 
-        self.inception_block_1 = InceptionBlock(in_channels=(128,64), output_dims=(64,64), num_modules=2)
-        self.inception_block_2 = InceptionBlock(in_channels=(64,64), output_dims=(64,64), num_modules=2)
-        self.inception_block_3 = InceptionBlock(in_channels=(64,64, 64), output_dims=(64, 64, 128), num_modules=3)
+        self.inception_block_1 = InceptionBlock(in_channels=(128,64), output_dims=(16,16), num_modules=2)
+        self.inception_block_2 = InceptionBlock(in_channels=(64,64), output_dims=(16,16), num_modules=2)
+        self.inception_block_3 = InceptionBlock(in_channels=(64,128,128), output_dims=(32, 32, 32), num_modules=3)
 
     def forward(self, x):
-        x = self.relu(self.bn1(self.conv1(x)))
-        x = self.relu(self.bn1(self.conv2(x)))
-        x = self.relu(self.bn2(self.conv3(x)))
+        x = self.conv1(x)
 
+        x = self.conv2(x)
+
+        x = self.conv3(x)
         x = self.pool(x)
 
         block1 = self.inception_block_1(x)
@@ -101,36 +95,48 @@ class Encoder(nn.Module):
 
         return block1, block2, block3
 
-# %% ../nbs/01_model.ipynb 7
+# %% ../nbs/01_model.ipynb 8
 class Decoder(nn.Module):
     def __init__(self):
         super(Decoder, self).__init__()
         self.deconv1 = nn.ConvTranspose2d(128, 256, kernel_size=3, stride=2, padding=1, output_padding=1)
-        self.conv1 = nn.Conv2d(320, 256, kernel_size=1)
-        self.conv2 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
+        self.conv1 = conv_Block(320, 256, kernel_size=1)
+        self.conv2 = conv_Block(256, 256, kernel_size=3, padding=1)
 
         self.deconv2 = nn.ConvTranspose2d(256, 128, kernel_size=3, stride=2, padding=1, output_padding=1)
-        self.conv3 = nn.Conv2d(192, 128, kernel_size=1)
-        self.conv4 = nn.Conv2d(128, 128, kernel_size=3, padding=1)
+        self.conv3 = conv_Block(192, 128, kernel_size=1)
+        self.conv4 = conv_Block(128, 128, kernel_size=3, padding=1)
 
         self.deconv3 = nn.ConvTranspose2d(128, 64, kernel_size=3, stride=2, padding=1, output_padding=1)
-        self.conv5 = nn.Conv2d(64, 64, kernel_size=3)
-        self.conv6 = nn.Conv2d(64, 64, kernel_size=1, padding=1)
+        self.conv5 = conv_Block(64, 64, kernel_size=1)
+        self.conv6 = conv_Block(64, 64, kernel_size=3, padding=1)
 
         self.pool = MaxPool2d(2)
-        self.relu = ReLU()
 
-    def concat_block2(self, input_tensor, block2):
+
+    def concat_block(self, input_tensor1, input_tensor2):
       # Concatenate along the first dimension
-      concatenated_tensor = torch.cat([input_tensor, block2], dim=1)
+      concatenated_tensor = torch.cat([input_tensor1, input_tensor2], dim=1)
 
       return concatenated_tensor
 
-    def concat_block1(self, input_tensor, block1):
-      # Concatenate along the first dimension
-      concatenated_tensor = torch.cat([input_tensor, block1], dim=1)
 
-      return concatenated_tensor
+    def deconvBlock1(self, x, block2):
+      return self.conv2(self.conv1(self.concat_block(self.deconv1(x), block2)))
+
+    def deconvBlock2(self, x, block1):
+      return self.conv4(self.conv3(self.concat_block(self.deconv2(x), block1)))
+
+    def deconvBlock3(self, x):
+      return self.conv6(self.conv5(self.deconv3(x)))
+
+
+    def forward(self, block1, block2, block3):
+        x = self.deconvBlock1(block3, block2)
+        x = self.deconvBlock2(x, block1)
+        x = self.deconvBlock3(x)
+
+        return x
 
 
     def deconvBlock1(self, x, block2):
@@ -150,19 +156,16 @@ class Decoder(nn.Module):
 
         return x
 
-# %% ../nbs/01_model.ipynb 8
+# %% ../nbs/01_model.ipynb 9
 class MVLidar(nn.Module):
-  def __init__(self, N_CLASSES):
+  def __init__(self):
     super().__init__()
     self.encoder = Encoder()
 
     self.decoder = Decoder()
 
-    self.classhead1 = nn.Conv2d(64, 64, kernel_size=3, padding=1)
-    self.bn1 = nn.BatchNorm2d(64)
-    self.bn2 = nn.BatchNorm2d(N_CLASSES)
-    self.relu = nn.ReLU()
-    self.classhead2 = nn.Conv2d(64, N_CLASSES, kernel_size=1)
+    self.classhead1 = conv_Block(64, 64, kernel_size=3, padding=1)
+    self.classhead2 = conv_Block(64, N_CLASSES, kernel_size=1)
 
 
   def forward(self, x):
@@ -170,13 +173,7 @@ class MVLidar(nn.Module):
 
     decFeatures = self.decoder(encFeatures1, encFeatures2, encFeatures3)
 
-    # pass the decoder features through the classification head to
-    # obtain the segmentation mask
     x = self.classhead1(decFeatures)
-    x = self.bn1(x)
-    x = self.relu(x)
-
     x = self.classhead2(x)
-    x = self.bn2(x)
-    x = self.relu(x)
+
     return x
