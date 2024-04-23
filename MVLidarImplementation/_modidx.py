@@ -62,4 +62,10 @@ d = { 'settings': { 'branch': 'main',
                                              'MVLidarImplementation.model.MVLidar.__init__': ( 'model.html#mvlidar.__init__',
                                                                                                'MVLidarImplementation/model.py'),
                                              'MVLidarImplementation.model.MVLidar.forward': ( 'model.html#mvlidar.forward',
-                                                                                              'MVLidarImplementation/model.py')}}}
+                                                                                              'MVLidarImplementation/model.py'),
+                                             'MVLidarImplementation.model.conv_Block': ( 'model.html#conv_block',
+                                                                                         'MVLidarImplementation/model.py'),
+                                             'MVLidarImplementation.model.conv_Block.__init__': ( 'model.html#conv_block.__init__',
+                                                                                                  'MVLidarImplementation/model.py'),
+                                             'MVLidarImplementation.model.conv_Block.forward': ( 'model.html#conv_block.forward',
+                                                                                                 'MVLidarImplementation/model.py')}}}
